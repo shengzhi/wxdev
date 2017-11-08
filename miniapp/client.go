@@ -31,12 +31,16 @@ type WXMiniClient struct {
 }
 
 // NewClient 创建客户端
-func NewClient(appid, secret string) *WXMiniClient {
-	return &WXMiniClient{
+func NewClient(appid, secret string, options ...OptionFunc) *WXMiniClient {
+	c := &WXMiniClient{
 		opt: option{
 			appid: appid, appsecret: secret,
 		},
 	}
+	for _, fn := range options {
+		fn(c)
+	}
+	return c
 }
 
 // WXAppSession 微信小程序会话
@@ -167,4 +171,26 @@ func (c *WXMiniClient) GetUserInfo(iv, cipherTxt, sessionKey string) (WXUserInfo
 	var user WXUserInfo
 	err = json.Unmarshal(data, &user)
 	return user, err
+}
+
+// WXPhoneInfo 微信账号绑定电话信息
+type WXPhoneInfo struct {
+	Phone     string `json:"phoneNumber"`
+	PurePhone string `json:"purePhoneNumber"`
+	Country   string `json:"countryCode"`
+	WaterMark struct {
+		AppID     string `json:"appid"`
+		Timestamp int64  `json:"timestamp"`
+	} `json:"watermark"`
+}
+
+// GetPhoneNumber 获取微信绑定电话号码
+func (c *WXMiniClient) GetPhoneNumber(iv, cipherTxt, sessionKey string) (WXPhoneInfo, error) {
+	data, err := c.WXAppDecript(cipherTxt, sessionKey, iv)
+	if err != nil {
+		return WXPhoneInfo{}, err
+	}
+	var phone WXPhoneInfo
+	err = json.Unmarshal(data, &phone)
+	return phone, err
 }

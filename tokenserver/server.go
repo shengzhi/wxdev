@@ -177,8 +177,10 @@ func (s *Server) Run(port int) {
 	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	http.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		appid := r.URL.Query().Get("appid")
-		w.WriteHeader(400)
-		return
+		if appid == "" {
+			w.WriteHeader(400)
+			return
+		}
 		token, expired, err := s.GetToken(appid)
 		if err != nil {
 			log.Println(err)
