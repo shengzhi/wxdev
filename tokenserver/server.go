@@ -30,6 +30,20 @@ func (r tokenReply) checkErr() error {
 	return nil
 }
 
+type ticketReply struct {
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
+	Ticket  string `json:"ticket"`
+	Expires int64  `json:"expires_in"`
+}
+
+func (r ticketReply) checkErr() error {
+	if r.ErrCode != 0 {
+		return fmt.Errorf("Code:%d,Message: %s", r.ErrCode, r.ErrMsg)
+	}
+	return nil
+}
+
 type app struct {
 	appid, secret string
 	token         tokenReply
@@ -41,16 +55,29 @@ func (a app) isValid() bool {
 	return time.Now().Before(a.expiredTime)
 }
 
+type ticketApp struct {
+	appid       string
+	ticket      ticketReply
+	expiredTime time.Time
+}
+
+// isValid 是否有效
+func (ta ticketApp) isValid() bool {
+	return time.Now().Before(ta.expiredTime)
+}
+
 // Server Token 中控服务
 type Server struct {
 	apps        map[string]app
+	ticketApps  map[string]ticketApp
 	flightGroup singleflight.Group
 }
 
 // NewServer 创建Server程序
 func NewServer() *Server {
 	return &Server{
-		apps: make(map[string]app, 0),
+		apps:       make(map[string]app, 0),
+		ticketApps: make(map[string]ticketApp, 0),
 	}
 }
 
@@ -82,6 +109,10 @@ func (s *Server) GetToken(appid string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
+	app = s.apps[appid]
+	if app.isValid() {
+		return app.token.Token, app.expiredTime.Format("2006-01-02 15:04:05"), nil
+	}
 	app.token = token.(tokenReply)
 	app.expiredTime = time.Now().Add(time.Second * time.Duration(app.token.Expires))
 	s.apps[app.appid] = app
@@ -100,12 +131,54 @@ func (s *Server) getAccessToken(appid, secret string, v interface{}) error {
 	return json.NewDecoder(res.Body).Decode(v)
 }
 
+// GetJSAPITicket 获取微信JSAPI_Ticket
+func (s *Server) GetJSAPITicket(appid string) (string, string, error) {
+	app, has := s.ticketApps[appid]
+	if has && app.isValid() {
+		return app.ticket.Ticket, app.expiredTime.Format("2006-01-02 15:04:05"), nil
+	}
+	key := fmt.Sprintf("ticket_%s", appid)
+	resp, err := s.flightGroup.Do(key, func() (interface{}, error) {
+		var reply ticketReply
+		err := s.doGetTicket(appid, &reply)
+		return reply, err
+	})
+	if err != nil {
+		return "", "", err
+	}
+	app = ticketApp{appid: appid, ticket: resp.(ticketReply)}
+	if err = app.ticket.checkErr(); err != nil {
+		return "", "", err
+	}
+	app.expiredTime = time.Now().Add(time.Second * time.Duration(app.ticket.Expires))
+	s.ticketApps[appid] = app
+	return app.ticket.Ticket, app.expiredTime.Format("2006-01-02 15:04:05"), nil
+}
+
+func (s *Server) doGetTicket(appid string, v interface{}) error {
+	token, _, err := s.GetToken(appid)
+	if err != nil {
+		return err
+	}
+	const uri = "https://api.weixin.qq.com/cgi-bin/ticket/getticket?access_token=%s&type=jsapi"
+	res, err := http.Get(fmt.Sprintf(uri, token))
+	if res != nil {
+		defer res.Body.Close()
+	}
+	if err != nil {
+		return err
+	}
+	return json.NewDecoder(res.Body).Decode(v)
+}
+
 // Run 启动server 并监听HTTP端口
 func (s *Server) Run(port int) {
 	stop := make(chan os.Signal)
 	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	http.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		appid := r.URL.Query().Get("appid")
+		w.WriteHeader(400)
+		return
 		token, expired, err := s.GetToken(appid)
 		if err != nil {
 			log.Println(err)
@@ -115,6 +188,22 @@ func (s *Server) Run(port int) {
 		}
 		w.Header().Set("Content-Type", "text/json")
 	})
+	http.HandleFunc("/jsapiticket", func(w http.ResponseWriter, r *http.Request) {
+		appid := r.URL.Query().Get("appid")
+		if appid != "" {
+			w.WriteHeader(400)
+			return
+		}
+		ticket, expired, err := s.GetJSAPITicket(appid)
+		if err != nil {
+			log.Println(err)
+			fmt.Fprintf(w, `{"errcode":%d,"errmsg":%v}`, 500, err)
+		} else {
+			fmt.Fprintf(w, `{"ticket":"%s","expired":"%s"}`, ticket, expired)
+		}
+		w.Header().Set("Content-Type", "text/json")
+	})
+
 	httpServer := http.Server{Addr: fmt.Sprintf(":%d", port)}
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil {
