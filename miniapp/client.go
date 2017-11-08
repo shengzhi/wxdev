@@ -8,7 +8,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"time"
 
+	"github.com/golang/groupcache/singleflight"
 	"github.com/shengzhi/wxdev/crypt"
 )
 
@@ -22,7 +25,9 @@ type option struct {
 
 // WXMiniClient 微信小程序客户端
 type WXMiniClient struct {
-	opt option
+	opt            option
+	tokenServerURL *url.URL
+	flightG        singleflight.Group
 }
 
 // NewClient 创建客户端
@@ -101,4 +106,65 @@ func (c *WXMiniClient) WXAppDecript(crypted, sessionkey, iv string) ([]byte, err
 	key, _ := base64.StdEncoding.DecodeString(sessionkey)
 	ivbyte, _ := base64.StdEncoding.DecodeString(iv)
 	return crypt.AESDecrypt(cryptedByte, key, ivbyte)
+}
+
+func (c *WXMiniClient) getAccessToken() (string, error) {
+	var err error
+	var token string
+	for i := 0; i < 5; i++ {
+		resp, err := c.flightG.Do("getaccesstoken", func() (interface{}, error) {
+			u, _ := url.Parse(fmt.Sprintf("token?appid=%s", c.opt.appid))
+			var reply struct{ Token string }
+			err := c.httpGet(c.tokenServerURL.ResolveReference(u).String(), &reply)
+			return reply.Token, err
+		})
+		if err != nil {
+			time.Sleep(time.Second)
+			continue
+		}
+		token = resp.(string)
+		break
+	}
+	return token, err
+}
+
+type WXSexType byte
+
+func (t WXSexType) String() string {
+	switch t {
+	case 1:
+		return "M"
+	case 2:
+		return "F"
+	default:
+		return "U"
+	}
+}
+
+// WXUserInfo 微信小程序用户信息
+type WXUserInfo struct {
+	OpenID     string    `json:"openid"`
+	NickName   string    `json:"nickname"`
+	Gender     WXSexType `json:"gender"`
+	Language   string    `json:"language"`
+	City       string    `json:"city"`
+	Province   string    `json:"province"`
+	Country    string    `json:"country"`
+	HeadImgUrl string    `json:"avatarUrl"`
+	UnionID    string    `json:"unionId"`
+	WaterMark  struct {
+		AppID     string `json:"appid"`
+		Timestamp int64  `json:"timestamp"`
+	} `json:"watermark"`
+}
+
+// GetUserInfo 获取微信用户信息
+func (c *WXMiniClient) GetUserInfo(iv, cipherTxt, sessionKey string) (WXUserInfo, error) {
+	data, err := c.WXAppDecript(cipherTxt, sessionKey, iv)
+	if err != nil {
+		return WXUserInfo{}, err
+	}
+	var user WXUserInfo
+	err = json.Unmarshal(data, &user)
+	return user, err
 }
