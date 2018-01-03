@@ -1,8 +1,14 @@
 package wxdev
 
 import "fmt"
+import "github.com/shengzhi/util/dtime"
 
 type WXSexType byte
+
+const (
+	WXSexTypeMale   WXSexType = 1
+	WXSexTypeFemale WXSexType = 2
+)
 
 func (t WXSexType) String() string {
 	switch t {
@@ -24,39 +30,72 @@ func (t WXBoolType) ToBool() bool {
 
 // WXUserInfo 微信公众号用户基本信息
 type WXUserInfo struct {
-	Subscribe     WXBoolType `json:"subscribe"`
-	OpenID        string     `json:"openid"`
-	NickName      string     `json:"nickname"`
-	Sex           WXSexType  `json:"sex"`
-	Language      string     `json:"language"`
-	City          string     `json:"city"`
-	Province      string     `json:"province"`
-	Country       string     `json:"country"`
-	HeadImgUrl    string     `json:"headimgurl"`
-	SubscribeTime int64      `json:"subscribe_time"`
-	UnionID       string     `json:"unionid"`
-	Remark        string     `json:"remark"`
-	GroupID       int        `json:"groupid"`
-	TagIDList     []int      `json:"tagid_list"`
-	ErrCode       int        `json:"errcode"`
-	ErrMsg        string     `json:"errmsg"`
+	Subscribe     WXBoolType     `json:"subscribe"`
+	OpenID        string         `json:"openid"`
+	NickName      string         `json:"nickname"`
+	Sex           WXSexType      `json:"sex"`
+	Language      string         `json:"language"`
+	City          string         `json:"city"`
+	Province      string         `json:"province"`
+	Country       string         `json:"country"`
+	HeadImgUrl    string         `json:"headimgurl"`
+	SubscribeTime dtime.JSONTime `json:"subscribe_time"`
+	UnionID       string         `json:"unionid"`
+	Remark        string         `json:"remark"`
+	GroupID       int            `json:"groupid"`
+	TagIDList     []int          `json:"tagid_list"`
+	ErrCode       int            `json:"errcode"`
+	ErrMsg        string         `json:"errmsg"`
 }
-
-const user_baseinfo_url = "https://api.weixin.qq.com/cgi-bin/user/info?access_token=%s&openid=%s&lang=zh_CN"
 
 // GetUserInfo 获取用户基本信息
 func (c *WXClient) GetUserInfo(openid string) (user WXUserInfo, err error) {
+	const uri = "https://api.weixin.qq.com/cgi-bin/user/info?access_token=%s&openid=%s&lang=zh_CN"
 	token, err := c.getAccessToken()
 	if err != nil {
 		return user, err
 	}
-	uri := fmt.Sprintf(user_baseinfo_url, token, openid)
-	err = c.httpGet(uri, &user)
+	err = c.httpGet(fmt.Sprintf(uri, token, openid), &user)
 	if err != nil {
 		return
 	}
 	if user.ErrCode != 0 {
-		err = fmt.Errorf("接口返回错误: %s", user.ErrMsg)
+		err = fmt.Errorf("%d-%s", user.ErrCode, user.ErrMsg)
 	}
 	return
+}
+
+// BatchGetUserInfo 批量获取用户信息
+func (c *WXClient) BatchGetUserInfo(openids ...string) ([]WXUserInfo, error) {
+	if len(openids) <= 0 || len(openids) > 100 {
+		return nil, fmt.Errorf("Cannot be more than 100 records one time")
+	}
+	const uri = "https://api.weixin.qq.com/cgi-bin/user/info/batchget?access_token=%s"
+	token, err := c.getAccessToken()
+	if err != nil {
+		return nil, err
+	}
+	type openidInfo struct {
+		OpenID string `json:"openid"`
+		Lang   string `json:"lang,omitempty"`
+	}
+	var data struct {
+		Users []openidInfo `json:"user_list"`
+	}
+	for _, openid := range openids {
+		data.Users = append(data.Users, openidInfo{OpenID: openid})
+	}
+	var result struct {
+		ErrCode int          `json:"errcode"`
+		ErrMsg  string       `json:"errmsg"`
+		Users   []WXUserInfo `json:"user_info_list"`
+	}
+	err = c.httpPost(fmt.Sprintf(uri, token), data, &result)
+	if err != nil {
+		return nil, err
+	}
+	if result.ErrCode != 0 {
+		return nil, fmt.Errorf("%d-%s", result.ErrCode, result.ErrMsg)
+	}
+	return result.Users, nil
 }

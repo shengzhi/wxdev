@@ -3,16 +3,15 @@ package wxdev
 import (
 	"bytes"
 	"crypto/sha1"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/golang/groupcache/singleflight"
@@ -35,6 +34,12 @@ func WithTokenServer(uri string) OptionFunc {
 	}
 }
 
+func WithValidationToken(token string) OptionFunc {
+	return func(c *WXClient) {
+		c.validationToken = token
+	}
+}
+
 // WXClient 公众号客户端
 type WXClient struct {
 	appid          string
@@ -43,7 +48,10 @@ type WXClient struct {
 		ticket      string
 		expiredTime time.Time
 	}
-	flightG singleflight.Group
+	validationToken string
+	msgHandler      WXMessageHandler
+	flightG         singleflight.Group
+	isdebug         bool
 }
 
 // NewWXClient 创建公众号客户端
@@ -55,8 +63,38 @@ func NewWXClient(appid string, options ...OptionFunc) *WXClient {
 	return c
 }
 
+// EnableDebug 启用debug模式
+func (c *WXClient) EnableDebug() {
+	c.isdebug = true
+}
+func (c *WXClient) dumpRequest(req *http.Request) {
+	if c.isdebug {
+		data, _ := httputil.DumpRequest(req, true)
+		fmt.Println(string(data))
+	}
+}
+func (c *WXClient) dumpResponse(resp *http.Response) {
+	if c.isdebug {
+		data, _ := httputil.DumpResponse(resp, true)
+		fmt.Println(string(data))
+	}
+}
+func (c *WXClient) httpDo(req *http.Request) (*http.Response, error) {
+	c.dumpRequest(req)
+	client := http.Client{
+		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+	}
+	resp, err := client.Do(req)
+	c.dumpResponse(resp)
+	return resp, err
+}
+
 func (c *WXClient) httpGet(uri string, v interface{}) error {
-	res, err := http.Get(uri)
+	req, err := http.NewRequest("GET", uri, nil)
+	if err != nil {
+		return err
+	}
+	res, err := c.httpDo(req)
 	if res != nil {
 		defer res.Body.Close()
 	}
@@ -68,7 +106,12 @@ func (c *WXClient) httpGet(uri string, v interface{}) error {
 
 func (c *WXClient) httpPost(uri string, data, v interface{}) error {
 	body, _ := json.Marshal(data)
-	res, err := http.Post(uri, "application/json", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", uri, bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	res, err := c.httpDo(req)
 	if res != nil {
 		defer res.Body.Close()
 	}
@@ -155,42 +198,4 @@ func (c *WXClient) getAccessToken() (string, error) {
 		break
 	}
 	return token, err
-}
-
-// MediaObject 多媒体对象
-type MediaObject struct {
-	FileName string
-	Type     string
-	Data     io.ReadCloser
-	Size     int64
-}
-
-// DownloadMedia 下载多媒体文件
-func (c *WXClient) DownloadMedia(mediaid string) (*MediaObject, error) {
-	const uri = "http://file.api.weixin.qq.com/cgi-bin/media/get?access_token=%s&media_id=%s"
-	token, err := c.getAccessToken()
-	if err != nil {
-		return nil, err
-	}
-
-	var mediaObj *MediaObject
-	res, err := http.Get(fmt.Sprintf(uri, token, mediaid))
-	if err != nil {
-		if res != nil {
-			res.Body.Close()
-		}
-		return nil, err
-	}
-	mediaObj = &MediaObject{}
-	mediaObj.Type = res.Header.Get("Content-Type")
-	mediaObj.Data = res.Body
-	mediaObj.Size, _ = strconv.ParseInt(res.Header.Get("Content-Lengt"), 10, 64)
-	disp := res.Header.Get("Content-disposition")
-	if len(disp) > 0 {
-		slice := strings.Split(disp, "filename=")
-		if len(slice) > 1 {
-			mediaObj.FileName = strings.Trim(slice[1], `"`)
-		}
-	}
-	return mediaObj, nil
 }
