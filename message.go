@@ -52,6 +52,7 @@ const (
 	WXMsgTypeLocation   WXMessageType = "location"
 	WXMsgTypeMusic      WXMessageType = "music"
 	WXMsgTypeNews       WXMessageType = "news"
+	WXMsgTypeTransferCS WXMessageType = "transfer_customer_service"
 )
 
 // WXMessageHandler 消息处理器
@@ -243,6 +244,12 @@ type ArticleItem struct {
 	Url         CDataContent
 }
 
+// WXTransferCSResponse 转发消息至微信客服系统
+type WXTransferCSResponse struct {
+	WXMsgResponse
+	Account CDataContent `xml:"TransInfo>KfAccount,omitempty"`
+}
+
 // NewTextMsg 创建文本消息
 func NewTextMsg(from, to, content string) WXTextMsgResponse {
 	return WXTextMsgResponse{
@@ -326,5 +333,21 @@ func NewArticleMsg(from, to string, items ...ArticleItem) WXArticleMsgResponse {
 		ArticleCount: len(items),
 	}
 	msg.Articles = append(msg.Articles, items...)
+	return msg
+}
+
+// TransferCustomerService 创建转发客服系统响应
+func TransferCustomerService(from, to, account string) WXTransferCSResponse {
+	msg := WXTransferCSResponse{
+		WXMsgResponse: WXMsgResponse{
+			ToUserName:   to,
+			FromUserName: from,
+			CreateTime:   time.Now().Unix(),
+			MsgType:      WXMsgTypeTransferCS,
+		},
+	}
+	if account != "" {
+		msg.Account = CDataWrap(account)
+	}
 	return msg
 }

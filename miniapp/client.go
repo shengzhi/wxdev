@@ -43,6 +43,9 @@ func NewClient(appid, secret string, options ...OptionFunc) *WXMiniClient {
 	return c
 }
 
+// AppID 返回当前小程序APP ID
+func (c *WXMiniClient) AppID() string { return c.opt.appid }
+
 // WXAppSession 微信小程序会话
 type WXAppSession struct {
 	ErrCode    int
@@ -93,6 +96,9 @@ func (c *WXMiniClient) GetSessionKey(code string) (WXAppSession, error) {
 	uri := fmt.Sprintf(sessionkey_url, c.opt.appid, c.opt.appsecret, code)
 	var s WXAppSession
 	err := c.httpGet(uri, &s)
+	if s.ErrCode != 0{
+		err = fmt.Errorf("%d-%s", s.ErrCode,s.ErrMsg)
+	}
 	return s, err
 }
 
