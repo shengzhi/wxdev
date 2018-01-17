@@ -63,6 +63,9 @@ func NewWXClient(appid string, options ...OptionFunc) *WXClient {
 	return c
 }
 
+// APPID 微信APPID
+func (c *WXClient) APPID() string { return c.appid }
+
 // EnableDebug 启用debug模式
 func (c *WXClient) EnableDebug() {
 	c.isdebug = true

@@ -127,10 +127,9 @@ func (c *WXClient) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		return
 	}
-	coder := xml.NewEncoder(w)
-	coder.Encode(resp)
-	coder.Flush()
-	w.Header().Set("Content-Type", "text/xml")
+
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	xml.NewEncoder(w).Encode(resp)
 	w.WriteHeader(200)
 }
 
@@ -188,6 +187,14 @@ func (r WXMessageRequest) IsScanEvent() bool {
 	return false
 }
 
+// GetEventKey 返回EventKey
+func (r WXMessageRequest) GetEventKey() string {
+	if r.Event == EventTypeSubscribe {
+		return strings.TrimPrefix(r.EventKey, "qrscene_")
+	}
+	return r.EventKey
+}
+
 type WXMsgResponse struct {
 	XMLName      xml.Name      `xml:"xml"`
 	ToUserName   string        `xml:",omitempty"`
@@ -211,22 +218,36 @@ func CDataWrap(content string) CDataContent {
 	return CDataContent{Text: content}
 }
 
-// WXMediaMsgResponse 图片/语音体消息
-type WXMediaMsgResponse struct {
+// WXImgMsgResponse 图片体消息
+type WXImgMsgResponse struct {
 	WXMsgResponse
-	MediaID     CDataContent `xml:"MediaId,omitempty"`
-	Title       CDataContent `xml:"Title,omitempty"`
-	Description CDataContent `xml:"Description,omitempty"`
+	MediaID CDataContent `xml:"Image>MediaId,omitempty"`
+}
+
+// WXVoiceMsgResponse 语音体消息
+type WXVoiceMsgResponse struct {
+	WXMsgResponse
+	MediaID CDataContent `xml:"Voice>MediaId,omitempty"`
+}
+
+// WXVideoMsgResponse 视频消息
+type WXVideoMsgResponse struct {
+	WXMsgResponse
+	MediaID     CDataContent `xml:"Video>MediaId,omitempty"`
+	Title       CDataContent `xml:"Video>Title,omitempty"`
+	Description CDataContent `xml:"Video>Description,omitempty"`
 }
 
 // WXMusicMsgResponse 音乐消息
 type WXMusicMsgResponse struct {
 	WXMsgResponse
-	Title        CDataContent `xml:",omitempty"`
-	Description  CDataContent `xml:",omitempty"`
-	MusicURL     CDataContent `xml:",omitempty"`
-	HQMusicUrl   CDataContent `xml:",omitempty"`
-	ThumbMediaId CDataContent `xml:",omitempty"`
+	Music struct {
+		Title        CDataContent `xml:",omitempty"`
+		Description  CDataContent `xml:",omitempty"`
+		MusicURL     CDataContent `xml:",omitempty"`
+		HQMusicUrl   CDataContent `xml:",omitempty"`
+		ThumbMediaId CDataContent `xml:",omitempty"`
+	} `xml:"Music"`
 }
 
 // WXArticleMsgResponse 图文消息
@@ -264,8 +285,8 @@ func NewTextMsg(from, to, content string) WXTextMsgResponse {
 }
 
 // NewImgMsg 图片消息
-func NewImgMsg(from, to, mediaid string) WXMediaMsgResponse {
-	return WXMediaMsgResponse{
+func NewImgMsg(from, to, mediaid string) WXImgMsgResponse {
+	return WXImgMsgResponse{
 		WXMsgResponse: WXMsgResponse{
 			ToUserName:   to,
 			FromUserName: from,
@@ -277,8 +298,8 @@ func NewImgMsg(from, to, mediaid string) WXMediaMsgResponse {
 }
 
 // NewVoiceMsg 语音消息
-func NewVoiceMsg(from, to, mediaid string) WXMediaMsgResponse {
-	return WXMediaMsgResponse{
+func NewVoiceMsg(from, to, mediaid string) WXVoiceMsgResponse {
+	return WXVoiceMsgResponse{
 		WXMsgResponse: WXMsgResponse{
 			ToUserName:   to,
 			FromUserName: from,
@@ -290,8 +311,8 @@ func NewVoiceMsg(from, to, mediaid string) WXMediaMsgResponse {
 }
 
 // NewVideoMsg 视频消息
-func NewVideoMsg(from, to, mediaid, title, desc string) WXMediaMsgResponse {
-	return WXMediaMsgResponse{
+func NewVideoMsg(from, to, mediaid, title, desc string) WXVideoMsgResponse {
+	return WXVideoMsgResponse{
 		WXMsgResponse: WXMsgResponse{
 			ToUserName:   to,
 			FromUserName: from,
@@ -306,19 +327,20 @@ func NewVideoMsg(from, to, mediaid, title, desc string) WXMediaMsgResponse {
 
 // NewMusicMsg 音乐消息
 func NewMusicMsg(from, to, mediaid, title, desc, uri, hquri string) WXMusicMsgResponse {
-	return WXMusicMsgResponse{
+	res := WXMusicMsgResponse{
 		WXMsgResponse: WXMsgResponse{
 			ToUserName:   to,
 			FromUserName: from,
 			CreateTime:   time.Now().Unix(),
 			MsgType:      WXMsgTypeMusic,
 		},
-		ThumbMediaId: CDataWrap(mediaid),
-		Title:        CDataWrap(title),
-		Description:  CDataWrap(desc),
-		MusicURL:     CDataWrap(uri),
-		HQMusicUrl:   CDataWrap(hquri),
 	}
+	res.Music.ThumbMediaId = CDataWrap(mediaid)
+	res.Music.Title = CDataWrap(title)
+	res.Music.Description = CDataWrap(desc)
+	res.Music.MusicURL = CDataWrap(uri)
+	res.Music.HQMusicUrl = CDataWrap(hquri)
+	return res
 }
 
 // NewArticleMsg 图文消息

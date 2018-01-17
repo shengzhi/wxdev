@@ -3,11 +3,34 @@
 package wxdev
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 )
 
 // Button 菜单
 type Button map[string]interface{}
+
+// LoadMenuFromFile 从文件中加载菜单配置
+func LoadMenuFromFile(path string) ([]Button, error) {
+	f, err := os.Open(path)
+	if f != nil {
+		defer f.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+	var menus []Button
+	err = json.NewDecoder(f).Decode(&menus)
+	return menus, err
+}
+
+// LoadMenu 解析JSON配置菜单
+func LoadMenu(jsonstr []byte) ([]Button, error) {
+	var menus []Button
+	err := json.Unmarshal(jsonstr, &menus)
+	return menus, err
+}
 
 // AddSubMenu 增加子菜单
 func (b Button) AddSubMenu(menu Button) Button {
