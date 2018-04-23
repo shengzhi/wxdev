@@ -4,16 +4,20 @@ package tokenserver
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/golang/groupcache/singleflight"
+	"github.com/shengzhi/util/helper"
 )
 
 type tokenReply struct {
@@ -171,6 +175,31 @@ func (s *Server) doGetTicket(appid string, v interface{}) error {
 	return json.NewDecoder(res.Body).Decode(v)
 }
 
+// JSSDKSignature JSSDK 签名对象
+type JSSDKSignature struct {
+	AppID, Noncestr, Sign string
+	Timestamp             int64
+}
+
+var randomeGenerator = helper.CreateRandomGenerator(helper.DigitsAndLetters)
+
+// GenJSAPISign 生成JSSDK Config签名配置
+func (s *Server) GenJSAPISign(appid, uri string) (JSSDKSignature, error) {
+	ticket, _, err := s.GetJSAPITicket(appid)
+	if err != nil {
+		return JSSDKSignature{}, err
+	}
+	noncestr := randomeGenerator(16)
+	timestamp := time.Now().Unix()
+	plainTxt := []byte(fmt.Sprintf("jsapi_ticket=%s&noncestr=%s&timestamp=%d&url=%s",
+		ticket, noncestr, timestamp, uri))
+	h := sha1.New()
+	h.Write(plainTxt)
+	b := h.Sum(nil)
+	sign := hex.EncodeToString(b)
+	return JSSDKSignature{AppID: appid, Noncestr: noncestr, Timestamp: timestamp, Sign: sign}, nil
+}
+
 // Run 启动server 并监听HTTP端口
 func (s *Server) Run(port int) {
 	stop := make(chan os.Signal)
@@ -192,16 +221,33 @@ func (s *Server) Run(port int) {
 	})
 	http.HandleFunc("/jsapiticket", func(w http.ResponseWriter, r *http.Request) {
 		appid := r.URL.Query().Get("appid")
-		if appid != "" {
+		if appid == "" {
 			w.WriteHeader(400)
 			return
 		}
 		ticket, expired, err := s.GetJSAPITicket(appid)
 		if err != nil {
-			log.Println(err)
 			fmt.Fprintf(w, `{"errcode":%d,"errmsg":%v}`, 500, err)
 		} else {
 			fmt.Fprintf(w, `{"ticket":"%s","expired":"%s"}`, ticket, expired)
+		}
+		w.Header().Set("Content-Type", "text/json")
+	})
+
+	http.HandleFunc("/jssdkconfig", func(w http.ResponseWriter, r *http.Request) {
+		appid := r.URL.Query().Get("appid")
+		if appid == "" {
+			w.WriteHeader(400)
+			return
+		}
+		uri := r.URL.Query().Get("uri")
+		uri, _ = url.QueryUnescape(uri)
+		cfg, err := s.GenJSAPISign(appid, uri)
+		if err != nil {
+			fmt.Fprintf(w, `{"errcode":%d,"errmsg":%v}`, 500, err)
+		} else {
+			data := fmt.Sprintf(`{"appid":"%s","noncestr":"%s","timestamp":%d,"sign":"%s"}`, cfg.AppID, cfg.Noncestr, cfg.Timestamp, cfg.Sign)
+			fmt.Fprint(w, data)
 		}
 		w.Header().Set("Content-Type", "text/json")
 	})
