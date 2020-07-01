@@ -20,7 +20,7 @@ import (
 
 var ErrNoTokenServer = errors.New("No specify token server")
 
-type AccessTokenFunc func(string)(string,error)
+type AccessTokenFunc func(appid string)(string,error)
 
 // OptionFunc 配置函数
 type OptionFunc func(*WXClient)
