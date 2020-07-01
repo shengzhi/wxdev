@@ -20,6 +20,8 @@ import (
 
 var ErrNoTokenServer = errors.New("No specify token server")
 
+type AccessTokenFunc func(string)(string,error)
+
 // OptionFunc 配置函数
 type OptionFunc func(*WXClient)
 
@@ -40,6 +42,12 @@ func WithValidationToken(token string) OptionFunc {
 	}
 }
 
+func WithAccessTokenFn(fn AccessTokenFunc) OptionFunc {
+	return func(c *WXClient) {
+		c.fnAccessToken = fn
+	}
+}
+
 // WXClient 公众号客户端
 type WXClient struct {
 	appid          string
@@ -51,6 +59,7 @@ type WXClient struct {
 	validationToken string
 	msgHandler      WXMessageHandler
 	flightG         singleflight.Group
+	fnAccessToken   AccessTokenFunc
 	isdebug         bool
 }
 
@@ -181,6 +190,9 @@ func (c *WXClient) getJSAPITicket(v interface{}) error {
 }
 
 func (c *WXClient) getAccessToken() (string, error) {
+	if c.fnAccessToken != nil{
+		return c.fnAccessToken(c.appid)
+	}
 	if c.tokenServerURL == nil {
 		return "", ErrNoTokenServer
 	}
