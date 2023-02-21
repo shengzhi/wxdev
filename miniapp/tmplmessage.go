@@ -9,6 +9,14 @@ import (
 	"net/http"
 )
 
+type MiniProgramState string
+
+const (
+	State_Developer MiniProgramState = "developer"
+	State_Trial     MiniProgramState = "trial"
+	State_Formal    MiniProgramState = "formal"
+)
+
 // TmplData 微信小程序模板消息
 type TmplData struct {
 	ToUser     string                   `json:"touser"`
@@ -22,7 +30,7 @@ type TmplData struct {
 
 type tmplFieldData struct {
 	Value string `json:"value"`
-	Color string `json:"color"`
+	Color string `json:"color,omitempty"`
 }
 
 // NewTmplData 创建模板
@@ -76,6 +84,67 @@ func (c *WXMiniClient) SendWXAppTemplate(data *TmplData) error {
 	}
 	if result.ErrCode != 0 {
 		return fmt.Errorf("Send template message failed, error code:%d, message:%s", result.ErrCode, result.ErrMsg)
+	}
+	return nil
+}
+
+type SubscribeMsgTmpl struct {
+	ToUser     string                   `json:"touser"`
+	TemplateID string                   `json:"template_id"`
+	Page       string                   `json:"page"`
+	State      MiniProgramState         `json:"miniprogram_state"`
+	Lang       string                   `json:"lang"` // 进入小程序查看”的语言类型，支持zh_CN(简体中文)、en_US(英文)、zh_HK(繁体中文)、zh_TW(繁体中文)，默认为zh_CN
+	Data       map[string]tmplFieldData `json:"data"`
+}
+
+func NewSubscribeMsgTmpl(openid, templateid, page string) *SubscribeMsgTmpl {
+	return &SubscribeMsgTmpl{
+		ToUser:     openid,
+		TemplateID: templateid,
+		Lang:       "zh_CN",
+		State:      State_Formal,
+		Page:       page,
+		Data:       make(map[string]tmplFieldData),
+	}
+}
+
+// Put 追加数据项
+func (t *SubscribeMsgTmpl) Put(key, value string) *SubscribeMsgTmpl {
+	t.Data[key] = tmplFieldData{Value: value}
+	return t
+}
+
+const wxapp_subscribe_message_tmpl = "https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=%s"
+
+// SendSubscribeMsg 发送订阅消息.
+func (c *WXMiniClient) SendSubscribeMsg(tmpl SubscribeMsgTmpl) error {
+	token, err := c.getAccessToken()
+	if err != nil {
+		return err
+	}
+	uri := fmt.Sprintf(wxapp_subscribe_message_tmpl, token)
+	var buf bytes.Buffer
+	err = json.NewEncoder(&buf).Encode(tmpl)
+	if err != nil {
+		return err
+	}
+	var res *http.Response
+	res, err = http.Post(uri, "application/json", &buf)
+	if res != nil {
+		defer res.Body.Close()
+	}
+	if err != nil {
+		return err
+	}
+	var result struct {
+		ErrCode int    `json:"errcode"`
+		ErrMsg  string `json:"errmsg"`
+	}
+	if err = json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return err
+	}
+	if result.ErrCode != 0 {
+		return fmt.Errorf("Send subscribe message failed, error code:%d, message:%s", result.ErrCode, result.ErrMsg)
 	}
 	return nil
 }
