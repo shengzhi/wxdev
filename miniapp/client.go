@@ -51,10 +51,23 @@ type WXAppSession struct {
 	ErrCode    int
 	ErrMsg     string
 	OpenID     string
+	UnionID    string
 	SessionKey string `json:"session_key"`
 }
 
 const sessionkey_url = "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code"
+
+type reply struct {
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
+}
+
+func (rep reply) Error() error {
+	if rep.ErrCode == 0 {
+		return nil
+	}
+	return fmt.Errorf("code:%d,errmsg:%s", rep.ErrCode, rep.ErrMsg)
+}
 
 func (c *WXMiniClient) httpGet(uri string, v interface{}) error {
 	res, err := http.Get(uri)
@@ -96,8 +109,8 @@ func (c *WXMiniClient) GetSessionKey(code string) (WXAppSession, error) {
 	uri := fmt.Sprintf(sessionkey_url, c.opt.appid, c.opt.appsecret, code)
 	var s WXAppSession
 	err := c.httpGet(uri, &s)
-	if s.ErrCode != 0{
-		err = fmt.Errorf("%d-%s", s.ErrCode,s.ErrMsg)
+	if s.ErrCode != 0 {
+		err = fmt.Errorf("%d-%s", s.ErrCode, s.ErrMsg)
 	}
 	return s, err
 }
@@ -191,12 +204,32 @@ type WXPhoneInfo struct {
 }
 
 // GetPhoneNumber 获取微信绑定电话号码
-func (c *WXMiniClient) GetPhoneNumber(iv, cipherTxt, sessionKey string) (WXPhoneInfo, error) {
-	data, err := c.WXAppDecript(cipherTxt, sessionKey, iv)
+//
+//	func (c *WXMiniClient) GetPhoneNumber(iv, cipherTxt, sessionKey string) (WXPhoneInfo, error) {
+//		data, err := c.WXAppDecript(cipherTxt, sessionKey, iv)
+//		if err != nil {
+//			return WXPhoneInfo{}, err
+//		}
+//		var phone WXPhoneInfo
+//		err = json.Unmarshal(data, &phone)
+//		return phone, err
+//	}
+func (c *WXMiniClient) GetPhoneNumber(code string) (WXPhoneInfo, error) {
+	token, err := c.getAccessToken()
 	if err != nil {
 		return WXPhoneInfo{}, err
 	}
-	var phone WXPhoneInfo
-	err = json.Unmarshal(data, &phone)
-	return phone, err
+	var resp struct {
+		reply
+		PhoneInfo WXPhoneInfo `json:"phone_info"`
+	}
+	req := map[string]string{"code": code}
+	err = c.httpPost(url_getPhoneNumber.Format(token), req, &resp)
+	if err != nil {
+		return WXPhoneInfo{}, err
+	}
+	if err = resp.Error(); err != nil {
+		return WXPhoneInfo{}, err
+	}
+	return resp.PhoneInfo, nil
 }

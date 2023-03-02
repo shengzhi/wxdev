@@ -2,13 +2,6 @@
 
 package miniapp
 
-import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"net/http"
-)
-
 type MiniProgramState string
 
 const (
@@ -53,41 +46,6 @@ func (t *TmplData) Put(key, value, color string) {
 	t.Data[key] = tmplFieldData{Value: value, Color: color}
 }
 
-const wxapp_tmpl_message_url = "https://api.weixin.qq.com/cgi-bin/message/wxopen/template/send?access_token=%s"
-
-// SendWXAppTemplate 发送微信小程序模板
-func (c *WXMiniClient) SendWXAppTemplate(data *TmplData) error {
-	token, err := c.getAccessToken()
-	if err != nil {
-		return err
-	}
-	uri := fmt.Sprintf(wxapp_tmpl_message_url, token)
-	var buf bytes.Buffer
-	err = json.NewEncoder(&buf).Encode(data)
-	if err != nil {
-		return err
-	}
-	var res *http.Response
-	res, err = http.Post(uri, "application/json", &buf)
-	if res != nil {
-		defer res.Body.Close()
-	}
-	if err != nil {
-		return err
-	}
-	var result struct {
-		ErrCode int    `json:"errcode"`
-		ErrMsg  string `json:"errmsg"`
-	}
-	if err = json.NewDecoder(res.Body).Decode(&result); err != nil {
-		return err
-	}
-	if result.ErrCode != 0 {
-		return fmt.Errorf("Send template message failed, error code:%d, message:%s", result.ErrCode, result.ErrMsg)
-	}
-	return nil
-}
-
 type SubscribeMsgTmpl struct {
 	ToUser     string                   `json:"touser"`
 	TemplateID string                   `json:"template_id"`
@@ -114,37 +72,17 @@ func (t *SubscribeMsgTmpl) Put(key, value string) *SubscribeMsgTmpl {
 	return t
 }
 
-const wxapp_subscribe_message_tmpl = "https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=%s"
-
 // SendSubscribeMsg 发送订阅消息.
 func (c *WXMiniClient) SendSubscribeMsg(tmpl SubscribeMsgTmpl) error {
 	token, err := c.getAccessToken()
 	if err != nil {
 		return err
 	}
-	uri := fmt.Sprintf(wxapp_subscribe_message_tmpl, token)
-	var buf bytes.Buffer
-	err = json.NewEncoder(&buf).Encode(tmpl)
+	uri := wxapp_subscribe_message_tmpl.Format(token)
+	var resp reply
+	err = c.httpPost(uri, tmpl, &resp)
 	if err != nil {
 		return err
 	}
-	var res *http.Response
-	res, err = http.Post(uri, "application/json", &buf)
-	if res != nil {
-		defer res.Body.Close()
-	}
-	if err != nil {
-		return err
-	}
-	var result struct {
-		ErrCode int    `json:"errcode"`
-		ErrMsg  string `json:"errmsg"`
-	}
-	if err = json.NewDecoder(res.Body).Decode(&result); err != nil {
-		return err
-	}
-	if result.ErrCode != 0 {
-		return fmt.Errorf("Send subscribe message failed, error code:%d, message:%s", result.ErrCode, result.ErrMsg)
-	}
-	return nil
+	return resp.Error()
 }
