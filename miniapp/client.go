@@ -4,10 +4,13 @@ package miniapp
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"time"
 
@@ -28,11 +31,16 @@ type WXMiniClient struct {
 	opt            option
 	tokenServerURL *url.URL
 	flightG        singleflight.Group
+	httpcli        *http.Client
+	isdebug        bool
 }
 
 // NewClient 创建客户端
 func NewClient(appid, secret string, options ...OptionFunc) *WXMiniClient {
 	c := &WXMiniClient{
+		httpcli: &http.Client{
+			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+		},
 		opt: option{
 			appid: appid, appsecret: secret,
 		},
@@ -40,6 +48,7 @@ func NewClient(appid, secret string, options ...OptionFunc) *WXMiniClient {
 	for _, fn := range options {
 		fn(c)
 	}
+	log.Println("tokenurl:", c.tokenServerURL)
 	return c
 }
 
@@ -69,39 +78,58 @@ func (rep reply) Error() error {
 	return fmt.Errorf("code:%d,errmsg:%s", rep.ErrCode, rep.ErrMsg)
 }
 
+func (c *WXMiniClient) dumpRequest(req *http.Request) {
+	if c.isdebug {
+		data, _ := httputil.DumpRequest(req, true)
+		fmt.Println(string(data))
+	}
+}
+func (c *WXMiniClient) dumpResponse(resp *http.Response) {
+	if c.isdebug {
+		data, _ := httputil.DumpResponse(resp, true)
+		fmt.Println(string(data))
+	}
+}
+
+func (c *WXMiniClient) httpDo(req *http.Request) (*http.Response, error) {
+	c.dumpRequest(req)
+	resp, err := c.httpcli.Do(req)
+	if resp != nil {
+		c.dumpResponse(resp)
+	}
+	return resp, err
+}
+
 func (c *WXMiniClient) httpGet(uri string, v interface{}) error {
-	res, err := http.Get(uri)
+	req, err := http.NewRequest("GET", uri, nil)
+	if err != nil {
+		return err
+	}
+	res, err := c.httpDo(req)
 	if res != nil {
 		defer res.Body.Close()
 	}
 	if err != nil {
 		return err
 	}
-	d := json.NewDecoder(res.Body)
-	err = d.Decode(v)
-	if err != nil {
-		return fmt.Errorf("Decode JSON error:%v", err)
-	}
-	return nil
+	return json.NewDecoder(res.Body).Decode(v)
 }
 
 func (c *WXMiniClient) httpPost(uri string, data, v interface{}) error {
-	var buf bytes.Buffer
-	w := json.NewEncoder(&buf)
-	w.Encode(data)
-	res, err := http.Post(uri, "application/json", &buf)
+	body, _ := json.Marshal(data)
+	req, err := http.NewRequest("POST", uri, bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	res, err := c.httpDo(req)
 	if res != nil {
 		defer res.Body.Close()
 	}
 	if err != nil {
 		return err
 	}
-	d := json.NewDecoder(res.Body)
-	err = d.Decode(v)
-	if err != nil {
-		return fmt.Errorf("Decode JSON error:%v", err)
-	}
-	return nil
+	return json.NewDecoder(res.Body).Decode(v)
 }
 
 // GetSessionKey 获取小程序session key
@@ -215,6 +243,7 @@ type WXPhoneInfo struct {
 //		return phone, err
 //	}
 func (c *WXMiniClient) GetPhoneNumber(code string) (WXPhoneInfo, error) {
+	log.Println("[wxdev]get phone number with code:", code)
 	token, err := c.getAccessToken()
 	if err != nil {
 		return WXPhoneInfo{}, err

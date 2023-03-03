@@ -1,7 +1,6 @@
 package miniapp
 
 import (
-	"log"
 	"net/url"
 )
 
@@ -11,7 +10,13 @@ func WithTokenServer(uri string) OptionFunc {
 		var err error
 		c.tokenServerURL, err = url.Parse(uri)
 		if err != nil {
-			log.Fatalln(err)
+			panic(err)
 		}
+	}
+}
+
+func WithDebug() OptionFunc {
+	return func(c *WXMiniClient) {
+		c.isdebug = true
 	}
 }

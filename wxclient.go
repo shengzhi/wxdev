@@ -20,7 +20,7 @@ import (
 
 var ErrNoTokenServer = errors.New("No specify token server")
 
-type AccessTokenFunc func(appid string)(string,error)
+type AccessTokenFunc func(appid string) (string, error)
 
 // OptionFunc 配置函数
 type OptionFunc func(*WXClient)
@@ -60,12 +60,16 @@ type WXClient struct {
 	msgHandler      WXMessageHandler
 	flightG         singleflight.Group
 	fnAccessToken   AccessTokenFunc
+	client          *http.Client
 	isdebug         bool
 }
 
 // NewWXClient 创建公众号客户端
 func NewWXClient(appid string, options ...OptionFunc) *WXClient {
-	c := &WXClient{appid: appid}
+	c := &WXClient{appid: appid,
+		client: &http.Client{
+			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+		}}
 	for _, fn := range options {
 		fn(c)
 	}
@@ -93,10 +97,7 @@ func (c *WXClient) dumpResponse(resp *http.Response) {
 }
 func (c *WXClient) httpDo(req *http.Request) (*http.Response, error) {
 	c.dumpRequest(req)
-	client := http.Client{
-		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
-	}
-	resp, err := client.Do(req)
+	resp, err := c.client.Do(req)
 	c.dumpResponse(resp)
 	return resp, err
 }
@@ -190,7 +191,7 @@ func (c *WXClient) getJSAPITicket(v interface{}) error {
 }
 
 func (c *WXClient) getAccessToken() (string, error) {
-	if c.fnAccessToken != nil{
+	if c.fnAccessToken != nil {
 		return c.fnAccessToken(c.appid)
 	}
 	if c.tokenServerURL == nil {
