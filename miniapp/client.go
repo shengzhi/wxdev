@@ -162,14 +162,21 @@ func (c *WXMiniClient) WXAppDecript(crypted, sessionkey, iv string) ([]byte, err
 func (c *WXMiniClient) getAccessToken() (string, error) {
 	var err error
 	var token string
+	u, err := url.Parse(fmt.Sprintf("token?appid=%s", c.opt.appid))
+	if err != nil {
+		return "", err
+	}
+	tokenUri := c.tokenServerURL.ResolveReference(u).String()
 	for i := 0; i < 5; i++ {
 		resp, err := c.flightG.Do("getaccesstoken", func() (interface{}, error) {
-			u, _ := url.Parse(fmt.Sprintf("token?appid=%s", c.opt.appid))
 			var reply struct{ Token string }
-			err := c.httpGet(c.tokenServerURL.ResolveReference(u).String(), &reply)
+			err := c.httpGet(tokenUri, &reply)
 			return reply.Token, err
 		})
 		if err != nil {
+			if c.isdebug {
+				fmt.Printf("get access_token error:%v,url:%s", err, tokenUri)
+			}
 			time.Sleep(time.Second)
 			continue
 		}
