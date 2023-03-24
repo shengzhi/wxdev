@@ -48,7 +48,6 @@ func NewClient(appid, secret string, options ...OptionFunc) *WXMiniClient {
 	for _, fn := range options {
 		fn(c)
 	}
-	log.Println("tokenurl:", c.tokenServerURL)
 	return c
 }
 
@@ -131,6 +130,7 @@ func (c *WXMiniClient) httpPost(uri string, data, v interface{}) error {
 	}
 	return json.NewDecoder(res.Body).Decode(v)
 }
+func (c *WXMiniClient) EnableDebug() { c.isdebug = true }
 
 // GetSessionKey 获取小程序session key
 func (c *WXMiniClient) GetSessionKey(code string) (WXAppSession, error) {
