@@ -15,6 +15,9 @@ import (
 type CodeGenArg struct {
 	Sence     string `json:"scene"`
 	Path      string `json:"path"`
+	CheckPath bool   `json:"check_path"`
+	// Env 要打开的小程序版本。正式版为 "release"，体验版为 "trial"，开发版为 "develop"。默认是正式版.
+	Env       string `json:"env_version"`
 	Width     int    `json:"width"`
 	AutoColor bool   `json:"auto_color"`
 	LineColor struct {
@@ -22,6 +25,8 @@ type CodeGenArg struct {
 		G string `json:"g"`
 		B string `json:"b"`
 	} `json:"line_color"`
+	// IsHyaline 默认是false，是否需要透明底色，为 true 时，生成透明底色的小程序.
+	IsHyaline bool `json:"is_hyaline"`
 }
 
 // WXACode_A 适用于需要的码数量较少的业务场景
