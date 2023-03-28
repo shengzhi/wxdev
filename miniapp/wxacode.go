@@ -14,7 +14,7 @@ import (
 // CodeGenArg 小程序码生成参数
 type CodeGenArg struct {
 	Sence     string `json:"scene"`
-	Path      string `json:"path,omitempty"`
+	Path      string `json:"page,omitempty"`
 	CheckPath bool   `json:"check_path,omitempty"`
 	// Env 要打开的小程序版本。正式版为 "release"，体验版为 "trial"，开发版为 "develop"。默认是正式版.
 	Env       string `json:"env_version,omitempty"`
