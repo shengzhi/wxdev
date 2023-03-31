@@ -1,7 +1,10 @@
 package wxdev
 
-import "fmt"
-import "github.com/shengzhi/util/dtime"
+import (
+	"fmt"
+
+	"github.com/shengzhi/util/dtime"
+)
 
 type WXSexType byte
 
@@ -98,4 +101,29 @@ func (c *WXClient) BatchGetUserInfo(openids ...string) ([]WXUserInfo, error) {
 		return nil, fmt.Errorf("%d-%s", result.ErrCode, result.ErrMsg)
 	}
 	return result.Users, nil
+}
+
+type LoginAccessToken struct {
+	ErrCode        int    `json:"errcode"`
+	ErrMsg         string `json:"errmsg"`
+	AccessToken    string `json:"access_token"`
+	Expires        int    `json:"expires_in"`
+	RefreshToken   string `json:"refresh_token"`
+	OpenID         string `json:"openid"`
+	Scope          string `json:"scope"`
+	UnionID        string `json:"unionid"`
+	IsSnapshotUser int    `json:"is_snapshotuser"`
+}
+
+func (c *WXClient) GetLoginAccessToken(code string) (LoginAccessToken, error) {
+	const uri = "https://api.weixin.qq.com/sns/oauth2/access_token?appid=%s&secret=%s&code=%sE&grant_type=authorization_code"
+	var token LoginAccessToken
+	err := c.httpGet(fmt.Sprintf(c.appid, c.appsecret, code), &token)
+	if err != nil {
+		return token, err
+	}
+	if token.ErrCode != 0 {
+		return token, fmt.Errorf("code:%d,message:%s", token.ErrCode, token.ErrMsg)
+	}
+	return token, nil
 }

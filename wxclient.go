@@ -48,11 +48,13 @@ func WithAccessTokenFn(fn AccessTokenFunc) OptionFunc {
 	}
 }
 
+func WithAppSecret(secret string) OptionFunc { return func(w *WXClient) { w.appsecret = secret } }
+
 // WXClient 公众号客户端
 type WXClient struct {
-	appid          string
-	tokenServerURL *url.URL
-	jsapiTicket    struct {
+	appid, appsecret string
+	tokenServerURL   *url.URL
+	jsapiTicket      struct {
 		ticket      string
 		expiredTime time.Time
 	}
