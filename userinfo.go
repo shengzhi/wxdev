@@ -118,7 +118,7 @@ type LoginAccessToken struct {
 func (c *WXClient) GetLoginAccessToken(code string) (LoginAccessToken, error) {
 	const uri = "https://api.weixin.qq.com/sns/oauth2/access_token?appid=%s&secret=%s&code=%sE&grant_type=authorization_code"
 	var token LoginAccessToken
-	err := c.httpGet(fmt.Sprintf(c.appid, c.appsecret, code), &token)
+	err := c.httpGet(fmt.Sprintf(uri, c.appid, c.appsecret, code), &token)
 	if err != nil {
 		return token, err
 	}
