@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -238,19 +237,18 @@ type WXPhoneInfo struct {
 	} `json:"watermark"`
 }
 
-// GetPhoneNumber 获取微信绑定电话号码
-//
-//	func (c *WXMiniClient) GetPhoneNumber(iv, cipherTxt, sessionKey string) (WXPhoneInfo, error) {
-//		data, err := c.WXAppDecript(cipherTxt, sessionKey, iv)
-//		if err != nil {
-//			return WXPhoneInfo{}, err
-//		}
-//		var phone WXPhoneInfo
-//		err = json.Unmarshal(data, &phone)
-//		return phone, err
-//	}
+// GetPhoneNumber 获取微信绑定电话号码.
+func (c *WXMiniClient) DecryptPhoneNumber(iv, cipherTxt, sessionKey string) (WXPhoneInfo, error) {
+	data, err := c.WXAppDecript(cipherTxt, sessionKey, iv)
+	if err != nil {
+		return WXPhoneInfo{}, err
+	}
+	var phone WXPhoneInfo
+	err = json.Unmarshal(data, &phone)
+	return phone, err
+}
+
 func (c *WXMiniClient) GetPhoneNumber(code string) (WXPhoneInfo, error) {
-	log.Println("[wxdev]get phone number with code:", code)
 	token, err := c.getAccessToken()
 	if err != nil {
 		return WXPhoneInfo{}, err
