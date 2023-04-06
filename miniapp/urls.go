@@ -14,6 +14,7 @@ const (
 	url_link_query               APIURL = "https://api.weixin.qq.com/wxa/query_urllink?access_token=%s"
 	url_link_short               APIURL = "https://api.weixin.qq.com/wxa/genwxashortlink?access_token=%s"
 	url_sms_send                 APIURL = "https://api.weixin.qq.com/tcb/sendsmsv2?access_token=%s"
+	url_activity_create          APIURL = "https://api.weixin.qq.com/cgi-bin/message/wxopen/activityid/create?access_token=%s"
 )
 
 func (uri APIURL) Format(args ...interface{}) string {

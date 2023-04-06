@@ -86,3 +86,21 @@ func (c *WXMiniClient) SendSubscribeMsg(tmpl SubscribeMsgTmpl) error {
 	}
 	return resp.Error()
 }
+
+func (c *WXMiniClient) CreateActivityID(openid, unionid string) (string, error) {
+	token, err := c.getAccessToken()
+	if err != nil {
+		return "", err
+	}
+	uri := url_activity_create.Format(token)
+	var resp struct {
+		reply
+		ActivityID string `json:"activity_id"`
+		Experation int    `json:"expiration_time"` //activity_id 的过期时间戳。默认24小时后过期
+	}
+	err = c.httpGet(uri, &resp)
+	if err != nil {
+		return "", err
+	}
+	return resp.ActivityID, resp.Error()
+}
