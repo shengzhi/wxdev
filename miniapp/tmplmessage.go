@@ -2,6 +2,8 @@
 
 package miniapp
 
+import "fmt"
+
 type MiniProgramState string
 
 const (
@@ -93,6 +95,12 @@ func (c *WXMiniClient) CreateActivityID(openid, unionid string) (string, error) 
 		return "", err
 	}
 	uri := url_activity_create.Format(token)
+	if openid != "" {
+		uri = fmt.Sprintf("%s&openid=%s", uri, openid)
+	}
+	if unionid != "" {
+		uri = fmt.Sprintf("%s&unionid=%s", uri, unionid)
+	}
 	var resp struct {
 		reply
 		ActivityID string `json:"activity_id"`
