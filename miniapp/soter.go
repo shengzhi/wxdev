@@ -1,7 +1,10 @@
 // 生物识别.
 package miniapp
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type SoterResult struct {
 	// Raw 调用者传入的challenge.
@@ -48,5 +51,6 @@ func (c *WXMiniClient) VerifySignature(openid, jsonstr, signature string) (Soter
 	if !resp.OK {
 		return result, fmt.Errorf("SOTER verify signature failed, code:%d, message:%s", resp.ErrCode, resp.ErrMsg)
 	}
-	return result, nil
+	err = json.Unmarshal([]byte(jsonstr), &result)
+	return result, err
 }
