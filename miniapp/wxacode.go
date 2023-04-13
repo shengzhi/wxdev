@@ -15,7 +15,7 @@ import (
 type CodeGenArg struct {
 	Sence     string `json:"scene"`
 	Path      string `json:"page,omitempty"`
-	CheckPath bool   `json:"check_path,omitempty"`
+	CheckPath bool   `json:"check_path"`
 	// Env 要打开的小程序版本。正式版为 "release"，体验版为 "trial"，开发版为 "develop"。默认是正式版.
 	Env       string `json:"env_version,omitempty"`
 	Width     int    `json:"width,omitempty"`
