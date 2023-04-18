@@ -114,8 +114,13 @@ func (c *WXMiniClient) httpGet(uri string, v interface{}) error {
 }
 
 func (c *WXMiniClient) httpPost(uri string, data, v interface{}) error {
-	body, _ := json.Marshal(data)
-	req, err := http.NewRequest("POST", uri, bytes.NewBuffer(body))
+	var buf bytes.Buffer
+	coder := json.NewEncoder(&buf)
+	coder.SetEscapeHTML(false)
+	if err := coder.Encode(data); err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", uri, &buf)
 	if err != nil {
 		return err
 	}
