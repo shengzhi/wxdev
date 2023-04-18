@@ -30,7 +30,7 @@ type (
 )
 
 // SendSMS 发送携带 URL Link 的短信.
-func (c *WXMiniClient) SendSMS(req ShortURLLinkGenerateReq) (SMSSendResp, error) {
+func (c *WXMiniClient) SendSMS(req SMSSendReq) (SMSSendResp, error) {
 	token, err := c.getAccessToken()
 	if err != nil {
 		return SMSSendResp{}, err
