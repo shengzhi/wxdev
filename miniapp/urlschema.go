@@ -197,3 +197,31 @@ func (c *WXMiniClient) GenerateShortURLLink(req ShortURLLinkGenerateReq) (URLLin
 	}
 	return resp.URLLink, nil
 }
+
+type NFCSchemaGenReq struct {
+	URLSchemaGenReq
+	ModelID string `json:"model_id"` // scheme对应的设备model_id
+	SN      string `json:"sn"`       // scheme对应的设备sn，仅一机一码时填写
+}
+
+// GenerateNFCSchema 用于获取用于 NFC 的小程序 scheme 码，适用于 NFC 拉起小程序的业务场景。
+// 目前仅针对国内非个人主体的小程序开放，详见 NFC 标签打开小程序。
+func (c *WXMiniClient) GenerateNFCSchema(req URLSchemaGenReq) (OpenLink, error) {
+	token, err := c.getAccessToken()
+	if err != nil {
+		return OpenLink(""), err
+	}
+	uri := url_schema_nfc.Format(token)
+	var resp struct {
+		reply
+		OpenLink OpenLink `json:"openlink"`
+	}
+	err = c.httpPost(uri, req, &resp)
+	if err != nil {
+		return resp.OpenLink, err
+	}
+	if err = resp.Error(); err != nil {
+		return resp.OpenLink, err
+	}
+	return resp.OpenLink, nil
+}

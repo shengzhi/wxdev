@@ -10,6 +10,7 @@ const (
 	url_soter_verify             APIURL = "https://api.weixin.qq.com/cgi-bin/soter/verify_signature?access_token=%s"
 	url_schema_generate          APIURL = "https://api.weixin.qq.com/wxa/generatescheme?access_token=%s"
 	url_schema_query             APIURL = "https://api.weixin.qq.com/wxa/queryscheme?access_token=%s"
+	url_schema_nfc               APIURL = "https://api.weixin.qq.com/wxa/generatenfcscheme?access_token=%s"
 	url_link_generate            APIURL = "https://api.weixin.qq.com/wxa/generate_urllink?access_token=%s"
 	url_link_query               APIURL = "https://api.weixin.qq.com/wxa/query_urllink?access_token=%s"
 	url_link_short               APIURL = "https://api.weixin.qq.com/wxa/genwxashortlink?access_token=%s"
