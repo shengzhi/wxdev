@@ -206,7 +206,7 @@ type NFCSchemaGenReq struct {
 
 // GenerateNFCSchema 用于获取用于 NFC 的小程序 scheme 码，适用于 NFC 拉起小程序的业务场景。
 // 目前仅针对国内非个人主体的小程序开放，详见 NFC 标签打开小程序。
-func (c *WXMiniClient) GenerateNFCSchema(req URLSchemaGenReq) (OpenLink, error) {
+func (c *WXMiniClient) GenerateNFCSchema(req NFCSchemaGenReq) (OpenLink, error) {
 	token, err := c.getAccessToken()
 	if err != nil {
 		return OpenLink(""), err
